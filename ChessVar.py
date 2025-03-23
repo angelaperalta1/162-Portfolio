@@ -339,7 +339,7 @@ class King(ChessPiece):
 
     def allowed_moves(self, start, end):
         """
-        allowed moves for a Knight chess piece
+        allowed moves for a King chess piece
         :param start: starting square notation
         :param end: end square notation
         :return: True if the move is legal. False if the move is illegal.
@@ -550,11 +550,18 @@ class ChessVar:
             capturing_piece = self._board[start]
 
             if captured_piece.get_type() != 'pawn':
-                # trigger explosion around piece
-                self.explode_around_square(captured_piece)
-                # add captured piece to used pieces list
+                # trigger explosion around the captured square
+                self.explode_around_square(end)
+            
+                # add both captured and capturing piece to used list
                 self._used_pieces.append(captured_piece)
                 self._used_pieces.append(capturing_piece)
+            
+                # remove both pieces from board
+                self._board[end] = None
+                self._board[start] = None
+            
+                self.update_game_state()
                 return True
 
             # if end piece contains a pawn, dont trigger explosion.
@@ -583,48 +590,44 @@ class ChessVar:
         return True
 
     def explode_around_square(self, captured_square):
-        """
-        8 squares surrounding captured piece explode and are added to used_pieces, including piece capturing
-        If opposing king is captured, update game state to current_player is winner
-        """
-        # need to view whole chess board
-        # view surrounding squares to see if they have any pieces
-        # if yes, add them to used_pieces
+    """
+    8 squares surrounding captured piece explode and are added to used_pieces.
+    Pawns are only destroyed if they are at the center. If a king explodes, end game.
+    """
+    column = captured_square[0]
+    row = int(captured_square[1])
 
-        column = captured_square[0]
-        row = captured_square[1]
+    col_index = ord(column)
+    row_index = int(row)
 
-        col_index = ord(column)     # ASCII value of column char
-        row_index = int(row)        # row value
+    row_offsets = [-1, 0, 1]
+    col_offsets = [-1, 0, 1]
 
-        row_offsets = [-1, 0, 1]
-        col_offsets = [-1, 0, 1]
+    for row_offset in row_offsets:
+        for col_offset in col_offsets:
+            new_col_index = col_index + col_offset
+            new_row_index = row_index + row_offset
 
-        for rows in row_offsets:
-            for columns in col_offsets:
-                if rows == 0 and columns == 0:
+            # skip if out of bounds
+            if not (ord('a') <= new_col_index <= ord('h') and 1 <= new_row_index <= 8):
+                continue
 
-                    new_col_index = col_index + columns     # adding int since col_index is ASCII value of column
-                    new_row_index = row_index + rows
+            square = chr(new_col_index) + str(new_row_index)
+            piece = self._board.get(square)
 
-                    if ord('a') <= new_col_index <= ord('h') and 1 <= new_row_index <= 8:
-                        surrounding_square = chr(new_col_index) + str(new_row_index)
-                        captured_pieces = self._board.get(surrounding_square)
+            if piece:
+                # Only the center pawn survives the explosion
+                if piece.get_type() == 'pawn' and square != captured_square:
+                    continue
 
-                        if captured_pieces is not None:
-                            if captured_pieces.get_type() == 'pawn':
-                                if captured_square == surrounding_square:
-                                    self._used_pieces.append(captured_pieces)
-                                    self._board[surrounding_square] = None
-                            else:
-                                self._used_pieces.append(captured_pieces)
-                        # Check if the square contains a king
-                            if captured_pieces.get_type() == 'king':
-                                self._used_pieces.append(captured_pieces)
-                                self.current_player_winner()
-                                self.update_game_state()
+                self._used_pieces.append(piece)
+                self._board[square] = None
 
-                    return True
+                # If a king is caught in the explosion, update game state
+                if piece.get_type() == 'king':
+                    self.current_player_winner()
+                    self.update_game_state()
+
 
     def print_board(self):
         """
